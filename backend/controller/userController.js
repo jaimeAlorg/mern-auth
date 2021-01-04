@@ -1,6 +1,7 @@
 const user = require("../models/userModel");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const auth = require("../middleware/auth");
 
 const registerUser = async (req, res) => {
   try {
@@ -57,35 +58,74 @@ const registerUser = async (req, res) => {
 };
 
 const loginUser = async (req, res) => {
-  const { email, password } = req.body;
+  try {
+    const { email, password } = req.body;
 
-  //const userEmail = await user.findOne({ email: email });
-  //const userPasswordMatch = await bcrypt.compare(password, user.password);
+    if (!email || !password) {
+      res.status(400).json({ msg: "Missing fields" });
+    }
 
-  if (!email || !password) {
-    res.status(400).json({ msg: "Missing fields" });
+    const userEmail = await user.findOne({ email: email });
+
+    if (!userEmail) {
+      res.status(400).json({ msg: "Incorrect email" });
+    }
+
+    const userPasswordMatch = await bcrypt.compare(
+      password,
+      userEmail.password
+    );
+
+    if (!userPasswordMatch) {
+      res.status(400).json({ msg: "Incorrect password" });
+    }
+
+    const token = jwt.sign({ id: userEmail._id }, process.env.JWT_SECRET);
+
+    res.json({
+      token,
+      user: {
+        id: userEmail._id,
+        username: userEmail.username,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-
-  const userEmail = await user.findOne({ email: email });
-
-  if (!userEmail) {
-    res.status(400).json({ msg: "Incorrect email" });
-  }
-
-  const userPasswordMatch = await bcrypt.compare(password, userEmail.password);
-
-  if (!userPasswordMatch) {
-    res.status(400).json({ msg: "Incorrect password" });
-  }
-
-  const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
-  res.json({
-    token,
-    user: {
-      id: userEmail._id,
-      username: userEmail.username,
-    },
-  });
 };
 
-module.exports = { registerUser, loginUser };
+const Delete = async (req, res) => {
+  try {
+    const deletedUser = await user.findByIdAndDelete(req.user);
+    res.json(deletedUser);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+const tokenIsValid = async (req, res) => {
+  try {
+    const token = req.header("x-auth-token");
+
+    if (!token) {
+      return res.json(false);
+    }
+
+    const verified = jwt.verify(token, process.env.JWT_SECRET);
+    if (!verified) {
+      return res.json(false);
+    }
+
+    const userId = await user.findById(verified.id);
+
+    if (!userId) {
+      return res.json(false);
+    }
+
+    return res.json(true);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+module.exports = { registerUser, loginUser, Delete, tokenIsValid };
