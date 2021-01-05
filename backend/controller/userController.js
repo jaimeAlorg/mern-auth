@@ -128,4 +128,12 @@ const tokenIsValid = async (req, res) => {
   }
 };
 
-module.exports = { registerUser, loginUser, Delete, tokenIsValid };
+const userLogged = async (req, res) => {
+  const userId = await user.findById(req.user);
+  res.json({
+    username: userId.username,
+    id: userId._id,
+  });
+};
+
+module.exports = { registerUser, loginUser, Delete, tokenIsValid, userLogged };
